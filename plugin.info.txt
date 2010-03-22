@@ -1,0 +1,7 @@
+base   preservefilenames
+author Kazutaka Miyasaka
+email  kazmiya@gmail.com
+date   2010-03-23
+name   PreserveFilenames Plugin
+desc   Preserves the original name of the uploaded media file (letter cases, symbols, etc.)
+url    http://www.dokuwiki.org/plugin:preservefilenames
