@@ -21,7 +21,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
     }
 
     /**
-     * Registers an event handler
+     * Registers event handlers
      */
     function register(&$controller) {
         $controller->register_hook('MEDIA_UPLOAD_FINISH',         'AFTER',  $this, '_saveMeta');
@@ -55,7 +55,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         }
         $filename_safe = $this->_sanitizeFileName($filename_orig);
 
-        // no need to backup original filename
+        // no need to save original filename
         if ($filename_tidy === $filename_safe) return;
 
         // fallback if suspicious characters found
@@ -159,9 +159,10 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
             if (!empty($calls[$i][$instructions][$title])) continue;
 
             $inst =& $calls[$i][$instructions];
+            $internal = ($calls[$i][$handler_name] === 'internalmedia');
 
             list($src, $hash) = explode('#', $inst[$source], 2);
-            if ($calls[$i][$handler_name] === 'internalmedia') {
+            if ($internal) {
                 resolve_mediaid($ns, $src, $exists);
                 if (!$exists && !$this->getConf('fix_phpbug37738')) continue;
             }
@@ -170,6 +171,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
             $render = ($inst[$linking] === 'linkonly') ? false : true;
 
             // are there any link title alternatives?
+            // @see _media() in inc/parser/xhtml.php
             if (substr($mime, 0, 5) === 'image') {
                 if ($ext == 'jpg' || $ext == 'jpeg') {
                     $jpeg = new JpegMeta(mediaFN($src));
@@ -181,7 +183,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
             }
 
             // fill the title with original filename
-            if ($calls[$i][$handler_name] === 'internalmedia') {
+            if ($internal) {
                 $filename = $this->_getOriginalFileName($src);
                 if ($filename !== false) {
                     $inst[$title] = $filename;
@@ -241,7 +243,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
     }
 
     /**
-     * Return list of files for the Mediamanager
+     * Outputs a list of files for mediamanager
      * 
      * @see media_filelist() in inc/media.php
      */
@@ -297,7 +299,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      * Builds appropriate "Content-Disposition" header strings
      */
     function _buildContentDispositionHeader($download, $filename) {
-        // use RFC2231 if enabled and accessed via RFC2231-compliant browsers
+        // use RFC2231 if enabled and accessed via RFC2231-compliant browser
         $use_rfc2231 = false;
         if ($this->getConf('use_rfc2231') && isset($_SERVER['HTTP_USER_AGENT'])
                 && preg_match('/(?:Gecko|Opera)\//', $_SERVER['HTTP_USER_AGENT'])) {
