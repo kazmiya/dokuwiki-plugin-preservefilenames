@@ -116,7 +116,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
         // retrieve original filename and send Content-Disposition header
         $filename = $this->_getOriginalFileName($MEDIA);
-        if ($filename === false) $filename = urldecode(basename($d['file']));
+        if ($filename === false) $filename = urldecode($this->_correctBasename($d['file']));
         header($this->_buildContentDispositionHeader($dl, $filename));
 
         // use x-sendfile header to pass the delivery to compatible webservers
@@ -188,9 +188,9 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
                 }
             }
 
-            // use a workaround for phpbug#37738 (basename() bug in handling multibyte filenames)
+            // use a workaround for phpbug#37738
             if ($this->getConf('fix_phpbug37738')) {
-                $inst[$title] = urldecode(basename(str_replace('%2F', '/', urlencode(noNS($src)))));
+                $inst[$title] = $this->_correctBasename(noNS($src));
             }
         }
     }
@@ -308,5 +308,26 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         $filename_part = $use_rfc2231 ? "filename*=UTF-8''$escaped" : 'filename="'.$escaped.'"';
 
         return "Content-Disposition: $type; $filename_part;";
+    }
+
+    /**
+     * Returns a correct basename
+     * 
+     * (fixes PHP Bug #37738: basename() bug in handling multibyte filenames)
+     */
+    function _correctBasename($path) {
+        static $rawurldecode_callback;
+
+        if (!isset($rawurldecode_callback)) {
+            $rawurldecode_callback = create_function(
+                '$matches',
+                'return rawurldecode($matches[0]);'
+            );
+        }
+        return rawurldecode(basename(preg_replace_callback(
+            '/%(?:[013-7][0-9a-fA-F]|2[0-46-9a-fA-F])/', // ASCII except for '%'
+            $rawurldecode_callback,
+            rawurlencode($path)
+        )));
     }
 }
