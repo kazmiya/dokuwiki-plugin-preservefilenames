@@ -31,6 +31,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         $controller->register_hook('MEDIAMANAGER_STARTED',        'AFTER',  $this, '_exportToJSINFO');
         $controller->register_hook('MEDIAMANAGER_CONTENT_OUTPUT', 'BEFORE', $this, '_showMediaList');
         $controller->register_hook('AJAX_CALL_UNKNOWN',           'BEFORE', $this, '_showMediaListAjax');
+        $controller->register_hook('ACTION_ACT_PREPROCESS',       'BEFORE', $this, '_replaceSnippetDownload');
     }
 
     /**
@@ -329,5 +330,17 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
             $rawurldecode_callback,
             rawurlencode($path)
         )));
+    }
+
+    /**
+     * Replaces the default snippet download handler
+     */
+    function _replaceSnippetDownload(&$event) {
+        global $ACT;
+
+        // $ACT is not clean, but in most cases this works fine
+        if ($event->data === 'export_code' && $this->getConf('fix_phpbug37738')) {
+            $ACT = 'export_preservefilenames';
+        }
     }
 }
