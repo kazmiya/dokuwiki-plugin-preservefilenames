@@ -72,6 +72,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      */
     function _sendFile(&$event) {
         global $conf;
+        global $MEDIA;
 
         $d = $event->data;
         $event->preventDefault();
@@ -103,7 +104,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         http_conditionalRequest($fmtime);
 
         // retrieve original filename and send Content-Disposition header
-        $filename = $this->_getOriginalFileName($d['media']);
+        $filename = $this->_getOriginalFileName($MEDIA);
         if ($filename === false) $filename = urldecode(basename($d['file']));
         header($this->_buildContentDispositionHeader($dl, $filename));
 
@@ -218,6 +219,8 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
         if ($event->data !== 'medialist_preservefilenames') return;
         $event->preventDefault();
+
+        require_once(DOKU_INC.'inc/media.php');
 
         $ns = cleanID($_POST['ns']);
         $auth = auth_quickaclcheck("$ns:*");

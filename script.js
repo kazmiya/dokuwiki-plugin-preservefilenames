@@ -42,8 +42,16 @@ addInitEvent(function() {
     ));
 
     // override snippet insertion
-    eval('media_manager.insert = ' + media_manager.insert.toString().replace(
-        /\+\s*id\s*\+/,
-        '+ JSINFO.plugin_preservefilenames.getFakeID(id) +'
-    ));
+    if (!!media_manager.select) { // DokuWiki 2009-12-25
+        eval('media_manager.select = ' + media_manager.select.toString().replace(
+            /\+\s*id\s*\+/,
+            '+ JSINFO.plugin_preservefilenames.getFakeID(id) +'
+        ));
+    }
+    if (!!media_manager.insert) { // DokuWiki dev@2010/03
+        eval('media_manager.insert = ' + media_manager.insert.toString().replace(
+            /\+\s*id\s*\+/,
+            '+ JSINFO.plugin_preservefilenames.getFakeID(id) +'
+        ));
+    }
 });
