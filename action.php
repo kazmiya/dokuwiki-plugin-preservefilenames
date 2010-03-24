@@ -37,10 +37,21 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      * Saves the name of the uploaded media file to a meta file
      */
     function _saveMeta(&$event) {
-        // retrieve safe filename
+        global $conf;
+
         $id = $event->data[2];
         $filename_tidy = noNS($id);
-        $filename_orig = $_POST['id'];
+
+        // retrieve original filename
+        if (!empty($_POST['id'])) { // via normal uploader
+            $filename_pat = $conf['useslash'] ? '/([^:;\/]*)$/' : '/([^:;]*)$/';
+            preg_match($filename_pat, $_POST['id'], $matches);
+            $filename_orig = $matches[1];
+        } elseif (isset($_FILES['Filedata'])) { // via multiuploader
+            $filename_orig = $_FILES['upload']['name'];
+        } else {
+            return;
+        }
         $filename_safe = $this->_sanitizeFileName($filename_orig);
 
         // no need to backup original filename
