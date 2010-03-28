@@ -297,20 +297,33 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
     /**
      * Builds appropriate "Content-Disposition" header strings
+     * 
+     * @see http://greenbytes.de/tech/tc2231/
      */
     function _buildContentDispositionHeader($download, $filename) {
-        // use RFC2231 if enabled and accessed via RFC2231-compliant browser
-        $use_rfc2231 = false;
-        if ($this->getConf('use_rfc2231') && isset($_SERVER['HTTP_USER_AGENT'])
-                && preg_match('/(?:Gecko|Opera)\//', $_SERVER['HTTP_USER_AGENT'])) {
-            $use_rfc2231 = true;
-        }
+        global $conf;
 
+        $ua   = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
         $type = $download ? 'attachment' : 'inline';
-        $escaped = rawurlencode($filename); // use *raw*urlencode (space matters)
-        $filename_part = $use_rfc2231 ? "filename*=UTF-8''$escaped" : 'filename="'.$escaped.'"';
+        $ret  = "Content-Disposition: $type;";
 
-        return "Content-Disposition: $type; $filename_part;";
+        if (!preg_match('/[\x00-\x1F\x7F-\xFF"*:<>?|\/\\\\]/', $filename)) {
+            // no problem with filename-safe ascii characters
+            $ret .= ' filename="'.$filename.'";';
+        } elseif (preg_match('/(?:Gecko\/|Opera\/| Opera )/', $ua)) {
+            // use RFC2231 if accessed via RFC2231-compliant browser
+            $ret .= " filename*=UTF-8''".rawurlencode($filename).';';
+        } elseif ($conf['useslash']
+                && $conf['userewrite']
+                && preg_match('/(?:Safari)\//', $ua)
+                && !preg_match('/(?:Chrome)\//', $ua)) {
+            // leave filename-parm field empty
+            // (browsers can retrieve a filename from pathinfo of its url)
+        } else {
+            // fallback to the DokuWiki default
+            $ret .= ' filename="'.rawurlencode($filename).'";';
+        }
+        return $ret;
     }
 
     /**
