@@ -404,12 +404,11 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         } elseif (preg_match('/(?:Gecko\/|Opera\/| Opera )/', $ua)) {
             // use RFC2231 if accessed via RFC2231-compliant browser
             $ret .= " filename*=UTF-8''".rawurlencode($filename).';';
-        } elseif ($conf['useslash']
-                && $conf['userewrite']
-                && preg_match('/(?:Safari)\//', $ua)
-                && !preg_match('/(?:Chrome)\//', $ua)) {
-            // leave filename-parm field empty
-            // (browsers can retrieve a filename from pathinfo of its url)
+        } elseif (strpos($filename, '"') === false
+                && strpos($ua, 'Safari/') !== false
+                && strpos($ua, 'Chrome/') === false) {
+            // raw UTF-8 quoted-string
+            $ret .= ' filename="'.$filename.'"';
         } else {
             // fallback to the DokuWiki default
             $ret .= ' filename="'.rawurlencode($filename).'";';
