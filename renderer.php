@@ -23,21 +23,15 @@ class renderer_plugin_preservefilenames extends Doku_Renderer_code {
 
         $action =& plugin_load('action', 'preservefilenames');
 
+        $language = $action->_sanitizeFilename($language);
         if (!$language) $language = 'txt';
+
+        $filename = $action->_correctBasename($filename);
+        $filename = $action->_sanitizeFilename($filename);
         if (!$filename) $filename = 'snippet.'.$language;
 
-        $filename = $this->getConf('fix_phpbug37738')
-            ? $action->_correctBasename($filename)
-            : basename($filename);
-        $filename = $action->_sanitizeFilename($filename);
-        if (!$filename) $filename = 'snippet.'.$language; // check again
-
-        $disposition_header = $this->getConf('use_rfc2231')
-            ? $action->_buildContentDispositionHeader('download', $filename)
-            : 'Content-Disposition: attachment; filename="'.rawurlencode($filename).'"';
-
         header("Content-Type: text/plain; charset=utf-8");
-        header($disposition_header);
+        header($action->_buildContentDispositionHeader('download', $filename));
         header("X-Robots-Tag: noindex");
         print trim($text, "\r\n");
         exit;

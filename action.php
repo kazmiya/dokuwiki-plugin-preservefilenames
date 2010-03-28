@@ -24,14 +24,15 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      * Registers event handlers
      */
     function register(&$controller) {
-        $controller->register_hook('MEDIA_UPLOAD_FINISH',         'AFTER',  $this, '_saveMeta');
-        $controller->register_hook('MEDIA_DELETE_FILE',           'AFTER',  $this, '_deleteMeta');
-        $controller->register_hook('MEDIA_SENDFILE',              'BEFORE', $this, '_sendFile');
-        $controller->register_hook('PARSER_HANDLER_DONE',         'BEFORE', $this, '_replaceLinkTitle');
-        $controller->register_hook('MEDIAMANAGER_STARTED',        'AFTER',  $this, '_exportToJSINFO');
-        $controller->register_hook('MEDIAMANAGER_CONTENT_OUTPUT', 'BEFORE', $this, '_showMediaList');
-        $controller->register_hook('AJAX_CALL_UNKNOWN',           'BEFORE', $this, '_showMediaListAjax');
-        $controller->register_hook('ACTION_ACT_PREPROCESS',       'BEFORE', $this, '_replaceSnippetDownload');
+        $controller->register_hook('MEDIA_UPLOAD_FINISH',          'AFTER',  $this, '_saveMeta');
+        $controller->register_hook('MEDIA_DELETE_FILE',            'AFTER',  $this, '_deleteMeta');
+        $controller->register_hook('MEDIA_SENDFILE',               'BEFORE', $this, '_sendFile');
+        $controller->register_hook('PARSER_HANDLER_DONE',          'BEFORE', $this, '_replaceLinkTitle');
+        $controller->register_hook('RENDERER_CONTENT_POSTPROCESS', 'AFTER',  $this, '_replaceLinkURL');
+        $controller->register_hook('MEDIAMANAGER_STARTED',         'AFTER',  $this, '_exportToJSINFO');
+        $controller->register_hook('MEDIAMANAGER_CONTENT_OUTPUT',  'BEFORE', $this, '_showMediaList');
+        $controller->register_hook('AJAX_CALL_UNKNOWN',            'BEFORE', $this, '_showMediaListAjax');
+        $controller->register_hook('ACTION_ACT_PREPROCESS',        'BEFORE', $this, '_replaceSnippetDownload');
     }
 
     /**
@@ -135,8 +136,6 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
     /**
      * Replaces titles of non-labeled internal media links with their original filenames
-     * 
-     * @see _media in inc/parser/xhtml.php
      */
     function _replaceLinkTitle(&$event) {
         global $ID;
@@ -152,50 +151,141 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
         // array index numbers for readability
         list($handler_name, $instructions, $source, $title, $linking) = array(0, 1, 0, 1, 6);
 
-        // scan internal media with no link title
+        // scan media link and mark it with its original filename
         $last = count($calls) - 1;
         for ($i = 0; $i <= $last; $i++) {
+            // NOTE: 'externalmedia' is processed here because there is a
+            //       basename() bug in fetching its auto-filled linktext.
+            //       For more details please see $this->_correctBasename().
             if (!preg_match('/^(?:in|ex)ternalmedia$/', $calls[$i][$handler_name])) continue;
-            if (!empty($calls[$i][$instructions][$title])) continue;
 
             $inst =& $calls[$i][$instructions];
-            $internal = ($calls[$i][$handler_name] === 'internalmedia');
-
+            $filename = false;
+            $linktext = $inst[$title];
+            $linkonly = ($inst[$linking] === 'linkonly');
             list($src, $hash) = explode('#', $inst[$source], 2);
-            if ($internal) {
+
+            // get original filename
+            if ($calls[$i][$handler_name] === 'internalmedia') {
                 resolve_mediaid($ns, $src, $exists);
-                if (!$exists && !$this->getConf('fix_phpbug37738')) continue;
-            }
-
-            list($ext, $mime, $dl) = mimetype($src);
-            $render = ($inst[$linking] === 'linkonly') ? false : true;
-
-            // are there any link title alternatives?
-            // @see _media() in inc/parser/xhtml.php
-            if (substr($mime, 0, 5) === 'image') {
-                if ($ext == 'jpg' || $ext == 'jpeg') {
-                    $jpeg = new JpegMeta(mediaFN($src));
-                    if ($jpeg !== false && $jpeg->getTitle()) continue;
-                }
-                if ($render) continue;
-            } elseif ($mime == 'application/x-shockwave-flash' && $render) {
-                continue;
-            }
-
-            // fill the title with original filename
-            if ($internal) {
+                list($ext, $mime, $dl) = mimetype($src);
                 $filename = $this->_getOriginalFileName($src);
-                if ($filename !== false) {
-                    $inst[$title] = $filename;
-                    continue;
+            } else {
+                list($ext, $mime, $dl) = mimetype($src);
+            }
+
+            // prefetch auto-filled linktext
+            if (!$linktext) {
+                if (substr($mime, 0, 5) === 'image'
+                        && ($ext === 'jpg' || $ext === 'jpeg')
+                        && ($jpeg = new JpegMeta(mediaFN($src)))
+                        && ($caption = $jpeg->getTitle())) {
+                    $linktext = $caption;
+                } else {
+                    $linktext = $this->_correctBasename(noNS($src));
                 }
             }
 
-            // use a workaround for phpbug#37738
-            if ($this->getConf('fix_phpbug37738')) {
-                $inst[$title] = $this->_correctBasename(noNS($src));
+            // add a marker (normally you cannot put '}}' in a media link title
+            // and cannot put ':' in a filename)
+            if ($filename === false) {
+                $inst[$title] = $linktext;
+            } elseif ($inst[$title] !== $linktext) {
+                $inst[$title] = $linktext.'}}preservefilenames:autofilled:'.$filename;
+            } else {
+                $inst[$title] = $linktext.'}}preservefilenames::'.$filename;
             }
         }
+    }
+
+    /**
+     * Replaces url and title of a link which has original filename info
+     */
+    function _replaceLinkURL(&$event) {
+        if ($event->data[0] !== 'xhtml') return;
+
+        // image link
+        $event->data[1] = preg_replace_callback(
+            '/
+                <a ([^>]*)>
+                (?:
+                    ([^<>\}]*)\}\}preservefilenames:(autofilled)?:([^<]*)
+                    |
+                    (<img [^>]*?alt="([^"]*)\}\}preservefilenames:(autofilled)?:([^"]*)"[^>]*>)
+                )
+                <\/a>
+            /x',
+            array(self, '_replaceLinkURL_callback_a'),
+            $event->data[1]
+        );
+
+        // embedded image
+        $event->data[1] = preg_replace_callback(
+            '/<img [^>]*?alt="([^"]*)\}\}preservefilenames:(autofilled)?:([^"]*)"[^>]*>/',
+            array(self, '_replaceLinkURL_callback_img'),
+            $event->data[1]
+        );
+    }
+
+    /**
+     * Callback function for _replaceLinkURL (link)
+     */
+    static function _replaceLinkURL_callback_a($matches) {
+        list($atag, $attr_str, $linktext, $autofilled, $filename) = array_slice($matches, 0, 5);
+        if (!preg_match('/class="media[" ]/', $attr_str)) return $atag;
+
+        if (isset($matches[5])) {
+            // image link
+            $filename = $matches[8];
+            $linktext = self::_replaceLinkURL_callback_img(array_slice($matches, 5, 4));
+        } else {
+            // text link
+            if ($autofilled) $linktext = $filename;
+        }
+
+        $filename = htmlspecialchars_decode($filename, ENT_QUOTES);
+        $pageid = cleanID($filename);
+
+        $attr_str = preg_replace(
+            array(
+                '/(href="[^"]*)'.preg_quote(rawurlencode($pageid)).'((?:\?[^#]*)?(?:#[^"]*)?")/',
+                '/(title="[^"]*)'.preg_quote($pageid).'(")/'
+            ),
+            array(
+                '\1'.rawurlencode($filename).'\2',
+                '\1'.hsc($filename).'\2'
+            ),
+            $attr_str
+        );
+
+        return "<a ".$attr_str.">".$linktext."</a>";
+    }
+
+    /**
+     * Callback function for _replaceLinkURL (image)
+     */
+    static function _replaceLinkURL_callback_img($matches) {
+        list($imgtag, $imgtitle, $autofilled, $filename) = $matches;
+        if (strpos($imgtag, 'class="media"') === false) return $imgtag;
+
+        if ($autofilled) $imgtitle = $filename;
+
+        $filename = htmlspecialchars_decode($filename, ENT_QUOTES);
+        $pageid = cleanID($filename);
+
+        $imgtag = preg_replace(
+            array(
+                '/(src="[^"]*)'.preg_quote(rawurlencode($pageid)).'((?:\?[^#]*)?(?:#[^"]*)?")/',
+                '/(alt|title)="[^"]*"/'
+            ),
+            array(
+                '\1'.rawurlencode($filename).'\2',
+                '\1="'.$imgtitle.'"'
+            ),
+            $imgtag
+        );
+
+        return $imgtag;
     }
 
     /**
@@ -292,6 +382,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
     function _sanitizeFileName($filename) {
         $filename = preg_replace('/[\x00-\x1F\x7F]/', '',  $filename); // control
         $filename = preg_replace('/["*:<>?|\/\\\\]/', '_', $filename); // graphic
+        $filename = preg_replace('/[#&]/', '_', $filename); // dw technical issues
         return $filename;
     }
 
@@ -328,8 +419,9 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
     /**
      * Returns a correct basename
-     * 
      * (fixes PHP Bug #37738: basename() bug in handling multibyte filenames)
+     * 
+     * @see http://bugs.php.net/37738
      */
     function _correctBasename($path) {
         static $rawurldecode_callback;
@@ -349,13 +441,15 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
     /**
      * Replaces the default snippet download handler
+     * 
+     * NOTE: This method is needed to fix basename() bug in determining 
+     *       filename of the snippet. For more details please see 
+     *       $this->_correctBasename().
      */
     function _replaceSnippetDownload(&$event) {
         global $ACT;
 
         // $ACT is not clean, but in most cases this works fine
-        if ($event->data === 'export_code' && $this->getConf('fix_phpbug37738')) {
-            $ACT = 'export_preservefilenames';
-        }
+        if ($ACT === 'export_code') $ACT = 'export_preservefilenames';
     }
 }
