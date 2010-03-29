@@ -423,19 +423,18 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      * @see http://bugs.php.net/37738
      */
     function _correctBasename($path) {
-        static $rawurldecode_callback;
-
-        if (!isset($rawurldecode_callback)) {
-            $rawurldecode_callback = create_function(
-                '$matches',
-                'return rawurldecode($matches[0]);'
-            );
-        }
         return rawurldecode(basename(preg_replace_callback(
             '/%(?:[013-7][0-9a-fA-F]|2[0-46-9a-fA-F])/', // ASCII except for '%'
-            $rawurldecode_callback,
+            array(self, '_correctBasename_callback'),
             rawurlencode($path)
         )));
+    }
+
+    /**
+     * Callback function for _correctBasename() (only does rawurldecode)
+     */
+    static function _correctBasename_callback($matches) {
+        return rawurldecode($matches[0]);
     }
 
     /**
