@@ -391,7 +391,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
      * 
      * @see http://greenbytes.de/tech/tc2231/
      */
-    function _buildContentDispositionHeader($download, $filename) {
+    function _buildContentDispositionHeader($download, $filename, $no_pathinfo = false) {
         global $conf;
 
         $ua   = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
@@ -406,9 +406,18 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
             $ret .= " filename*=UTF-8''".rawurlencode($filename).';';
         } elseif (strpos($filename, '"') === false
                 && strpos($ua, 'Safari/') !== false
-                && strpos($ua, 'Chrome/') === false) {
+                && strpos($ua, 'Chrome/') === false
+                && preg_match('/Version\/[4-9]/', $ua)
+                && !preg_match('/Mac OS X 10_[1-4]_/', $ua)) {
             // raw UTF-8 quoted-string
             $ret .= ' filename="'.$filename.'"';
+        } elseif (!$no_pathinfo
+                && $conf['useslash']
+                && $conf['userewrite']
+                && strpos($ua, 'Safari/') !== false
+                && strpos($ua, 'Chrome/') === false) {
+            // leave filename-parm field empty
+            // (browsers can retrieve a filename from pathinfo of its url)
         } else {
             // fallback to the DokuWiki default
             $ret .= ' filename="'.rawurlencode($filename).'";';

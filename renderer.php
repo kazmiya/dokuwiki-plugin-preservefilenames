@@ -31,7 +31,7 @@ class renderer_plugin_preservefilenames extends Doku_Renderer_code {
         if (!$filename) $filename = 'snippet.'.$language;
 
         header("Content-Type: text/plain; charset=utf-8");
-        header($action->_buildContentDispositionHeader('download', $filename));
+        header($action->_buildContentDispositionHeader('download', $filename, 'no_pathinfo'));
         header("X-Robots-Tag: noindex");
         print trim($text, "\r\n");
         exit;
