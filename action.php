@@ -118,7 +118,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
 
         // retrieve original filename and send Content-Disposition header
         $filename = $this->_getOriginalFileName($MEDIA);
-        if ($filename === false) $filename = urldecode($this->_correctBasename($d['file']));
+        if ($filename === false) $filename = utf8_decodeFN($this->_correctBasename($d['file']));
         header($this->_buildContentDispositionHeader($dl, $filename));
 
         // use x-sendfile header to pass the delivery to compatible webservers
