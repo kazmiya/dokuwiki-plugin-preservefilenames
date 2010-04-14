@@ -252,8 +252,8 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
                 '/(title="[^"]*)'.preg_quote($pageid).'(")/'
             ),
             array(
-                '\1'.rawurlencode($filename).'\2',
-                '\1'.hsc($filename).'\2'
+                "\${1}".rawurlencode($filename).'\2',
+                "\${1}".hsc($filename).'\2'
             ),
             $attr_str
         );
@@ -279,7 +279,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin {
                 '/(alt|title)="[^"]*"/'
             ),
             array(
-                '\1'.rawurlencode($filename).'\2',
+                "\${1}".rawurlencode($filename).'\2',
                 '\1="'.$imgtitle.'"'
             ),
             $imgtag
