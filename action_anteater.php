@@ -267,7 +267,7 @@ class action_plugin_preservefilenames_anteater extends DokuWiki_Action_Plugin {
      */
     static function _replaceLinkURL_callback_img($matches) {
         list($imgtag, $imgtitle, $autofilled, $filename) = $matches;
-        if (strpos($imgtag, 'class="media"') === false) return $imgtag;
+        if (!preg_match('/class="media(?:left|right|center)?[" ]/', $imgtag)) return $imgtag;
 
         if ($autofilled) $imgtitle = $filename;
 
