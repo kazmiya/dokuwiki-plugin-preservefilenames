@@ -13,4 +13,4 @@ Download URL for the Plugin Manager
 
 See COPYING for license info.
 
-Copyright (c) 2010 Kazutaka Miyasaka <kazmiya@gmail.com>
+Copyright (c) 2010-2012 Kazutaka Miyasaka <kazmiya@gmail.com>
