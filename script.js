@@ -1,6 +1,6 @@
 /**
  * PreserveFilenames Plugin for DokuWiki / script.js
- * 
+ *
  * @author Kazutaka Miyasaka <kazmiya@gmail.com>
  */
 
@@ -24,6 +24,77 @@
      * for DokuWiki Angua
      */
     function _Angua() {
+        var update_content_orig,
+            insert_orig;
+
+        // replace built-in methods with plugin's
+        if (typeof dw_mediamanager === 'object') {
+            update_content_orig = dw_mediamanager.update_content;
+            dw_mediamanager.update_content = mod_update_content;
+
+            insert_orig = dw_mediamanager.insert;
+            dw_mediamanager.insert = mod_insert;
+        }
+
+        if (
+            typeof qq === 'object' &&
+            typeof qq.FileUploaderExtended === 'function'
+        ) {
+            qq.FileUploaderExtended.prototype._addToList = mod_addToList;
+        }
+
+        /**
+         * Changes ajax call parameter in media manager
+         */
+        function mod_update_content($content, params, update_list) {
+            params = params.replace(
+                /\bcall=(media(?:list))\&/,
+                'call=preservefilenames_$1&'
+            );
+
+            update_content_orig($content, params, update_list);
+        }
+
+        /**
+         * Changes file part of a media id into its original filename
+         */
+        function mod_insert(id) {
+            var filename,
+                matches;
+
+            // retrieve original filename by DOM manipulation
+            filename = jQuery('#media__content')
+                .find('a[name="h_' + id + '"]:first')
+                .text();
+
+            if (
+                filename !== '' &&
+                (matches = id.match(/^((?::[^:]+)*:)[^:]+$/))
+            ) {
+                filename = filename.replace(/\{/g, '(').replace(/\}/g, ')');
+                id = matches[1] + filename;
+            }
+
+            insert_orig(id);
+        }
+
+        /**
+         * Fills input box with raw file name (without cleanID process)
+         */
+        function mod_addToList(id, fileName) {
+            var item = qq.toElement(this._options.fileTemplate);
+            item.qqFileId = id;
+
+            var fileElement = this._find(item, 'file');
+            qq.setText(fileElement, fileName);
+            this._find(item, 'size').style.display = 'none';
+
+            var nameElement = this._find(item, 'nameInput');
+            nameElement.value = fileName;
+            nameElement.id = 'mediamanager__upload_item' + id;
+
+            this._listElement.appendChild(item);
+        }
     }
 
     /**
