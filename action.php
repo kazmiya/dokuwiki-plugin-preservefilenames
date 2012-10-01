@@ -32,16 +32,22 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin
      */
     function register(&$controller)
     {
-        if (function_exists('tpl_media')) {
+        if (function_exists('act_validate')) {
+            // DokuWiki Adora Belle
+            require_once(DOKU_PLUGIN . 'preservefilenames/action_adorabelle.php');
+            $handler = new action_plugin_preservefilenames_adorabelle();
+        } elseif (function_exists('tpl_media')) {
             // DokuWiki Angua
             require_once(DOKU_PLUGIN . 'preservefilenames/action_angua.php');
             $handler = new action_plugin_preservefilenames_angua();
-            $handler->register($controller);
         } elseif (function_exists('utf8_decodeFN')) {
             // DokuWiki Anteater or Rincewind
             require_once(DOKU_PLUGIN . 'preservefilenames/action_anteater.php');
             $handler = new action_plugin_preservefilenames_anteater();
-            $handler->register($controller);
+        } else {
+            return;
         }
+
+        $handler->register($controller);
     }
 }

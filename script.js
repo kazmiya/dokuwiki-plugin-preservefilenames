@@ -10,7 +10,7 @@
         typeof DEPRECATED === 'function' ||
         typeof addInitEvent === 'undefined'
     ) {
-        // DokuWiki Angua
+        // DokuWiki Angua or later
         jQuery(_Angua);
     } else if (
         typeof JSINFO === 'object' &&
@@ -21,7 +21,7 @@
     }
 
     /**
-     * for DokuWiki Angua
+     * for DokuWiki Angua or later
      */
     function _Angua() {
         var update_content_orig,
@@ -64,7 +64,7 @@
 
             // retrieve original filename by DOM manipulation
             filename = jQuery('#media__content')
-                .find('a[name="h_' + id + '"]:first')
+                .find('a[id="h_' + id + '"]:first, a[name="h_' + id + '"]:first')
                 .text();
 
             if (
