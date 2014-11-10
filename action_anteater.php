@@ -239,9 +239,10 @@ class action_plugin_preservefilenames_anteater extends DokuWiki_Action_Plugin
      */
     function _replaceLinkURL(&$event)
     {
-        if ($event->data[0] !== 'xhtml') {
-            return;
-        }
+        // MI: allow also dw2PDF
+        //if ($event->data[0] !== 'xhtml') {
+        //    return;
+        //}
 
         // image link
         $event->data[1] = preg_replace_callback(

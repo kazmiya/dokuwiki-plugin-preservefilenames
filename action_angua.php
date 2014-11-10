@@ -294,6 +294,129 @@ class action_plugin_preservefilenames_angua extends action_plugin_preservefilena
             $this->_mod_media_filelist($ns,$auth,$jump,true,_media_get_sort_type());
         }
     }
+    
+    function _search_media_with_auto_file_name_fix(&$data,$base,$file,$type,$lvl,$opts){
+        $r = search_media($data, $base, $file, $type, $lvl, $opts);
+        if (!$result) {
+            $cleanId = $this->_fixMediaFileName($file);
+            // add fixed file
+            if ($cleanId == null) {
+                $result = false;
+            }
+            else {
+                $cleanFile = str_replace(':', '/',$cleanId);
+                $result = search_media($data, $base, $cleanFile, $type, $lvl, $opts);
+            }
+        }
+        $descriptions = $opts['descriptions'];
+        $this->_addMediaFileDescription($file, $descriptions);
+        return $result;
+    }
+    
+    function _fixMediaFileName($file) {
+        $id = pathID($file, true);
+        $cleanId = cleanID($id);
+        if($id == $cleanId){
+            return null;
+        }
+        // invalid file name, try to fix it automatically
+        msg('Attempting to fix the file name.', 0);       
+        $filename_orig = noNS($id);            
+        $filename_safe = $this->common->_sanitizeFileName($filename_orig);
+        // fallback if suspicious characters found
+        if ($filename_orig !== $filename_safe) {
+            msg('Suspicious characters found in the file name.', -1);
+            return null;
+        }
+        $filename_tidy = noNS($cleanId);
+        // rename original file to safe name
+        $oldPath = mediaFN('').$file;
+        $newPath = mediaFN($cleanId);
+        if (!io_rename($oldPath, $newPath)) {
+            msg('Cannot rename the file.', -1);
+            return null;
+        }        
+        // save original filename to meta file
+        if (!io_saveFile(
+            mediaMetaFN($cleanId, '.filename'),
+            serialize(array('filename' => $filename_safe))
+            )) {
+            msg('Cannot save original file name.', -1);
+            return null;
+        }
+        msg('File name fixed.',1);
+        return $cleanId;
+    }
+ 
+    function _getMediaFileDescriptions($dir) {
+        $descriptionFile = mediaFN($dir).'/descript.ion';
+        // each file in $dir folder can have one line in 'descript.ion' file
+        $descriptionsRaw = io_readFile($descriptionFile, false);
+        $encoding = mb_detect_encoding($descriptionsRaw);
+        if ($encoding !== false)
+            $descriptionsRaw = mb_convert_encoding($descriptionsRaw, 'UTF-8', $encoding);
+        $descriptionLines = explode(PHP_EOL, $descriptionsRaw);
+        if (count($descriptionLines) == 0)
+            $descriptions = null;
+        else {
+            $descriptions = array();
+            // $description line is:
+            // '"file name" description'
+            foreach ($descriptionLines as $descriptionLine) {
+                $descriptionParts = explode('"', $descriptionLine);
+                if (count($descriptionParts) >= 3)
+                    $descriptions[$descriptionParts[1]] = trim($descriptionParts[2]);
+            }
+        }
+        return $descriptions;
+    }
+    
+    function _setMediaFileDescriptionTag($id, $description, $onlyIfNotSet, $msgSource) {
+        $path = mediaFN($id);
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        // JpegMeta supports only tag saving in jpg files
+        if ($ext != 'jpg' && $ext != 'jpeg')
+            return;
+        $meta = new JpegMeta($path);
+        $mediaFileDescriptionTagFieldName = 'Iptc.Headline';
+        $descriptionFieldValue = $meta->getField($mediaFileDescriptionTagFieldName);
+        if ($onlyIfNotSet && strlen($descriptionFieldValue) > 0)
+            return;
+        if ($descriptionFieldValue === $description)
+            return;
+        msg('Setting title tag from '.$msgSource.' to "'.$id.'".' ,0);
+        $meta->setField($mediaFileDescriptionTagFieldName, $description);
+        $meta->save();
+    }
+    
+    function _addMediaFileDescription($file, $descriptions) {
+        $id = pathID($file, true);
+        $description = null;
+        $filename = noNS($id);
+        $filenameOrig = null;
+        if ($descriptions) {
+            $description = $descriptions[$filename];
+            if (!$description) {
+                $filenameOrig = $this->_getOriginalFileName($id);
+                if ($filename_orig)
+                    $description = $descriptions[$filenameOrig];
+            }
+        }
+        $onlyIfNotSet = false;
+        $msgSource = 'descript.ion file';
+        if (!$description){
+            if (!$filenameOrig) 
+                $filenameOrig = $this->_getOriginalFileName($id);
+            if ($filenameOrig)
+                $description = pathinfo($filenameOrig, PATHINFO_BASENAME);
+            else
+                $description = pathinfo($filename, PATHINFO_BASENAME);
+            $onlyIfNotSet = true;
+            $msgSource = 'file name';
+        }
+        if ($description)
+            $this->_setMediaFileDescriptionTag($id, $description, $onlyIfNotSet, $msgSource);
+    }
 
     /**
      * List all files in a given Media namespace
@@ -317,9 +440,11 @@ class action_plugin_preservefilenames_angua extends action_plugin_preservefilena
             if (!$fullscreenview) media_uploadform($ns, $auth);
 
             $dir = utf8_encodeFN(str_replace(':','/',$ns));
+            $descriptions = $this->_getMediaFileDescriptions($dir);
             $data = array();
-            search($data,$conf['mediadir'],'search_media',
-                    array('showmsg'=>true,'depth'=>1),$dir,1,$sort);
+            search($data,$conf['mediadir'],
+                    array($this,'_search_media_with_auto_file_name_fix'),
+                    array('showmsg'=>true,'depth'=>1, 'descriptions' => $descriptions),$dir,1,$sort);
 
             if(!count($data)){
                 echo '<div class="nothing">'.$lang['nothingfound'].'</div>'.NL;
