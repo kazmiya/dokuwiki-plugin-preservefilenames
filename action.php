@@ -30,7 +30,7 @@ class action_plugin_preservefilenames extends DokuWiki_Action_Plugin
     /**
      * Registers event handlers
      */
-    function register(&$controller)
+    function register(Doku_Event_Handler $controller)
     {
         if (function_exists('act_validate')) {
             // DokuWiki Adora Belle
