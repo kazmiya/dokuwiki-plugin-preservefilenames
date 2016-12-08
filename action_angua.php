@@ -23,7 +23,7 @@ class action_plugin_preservefilenames_angua extends action_plugin_preservefilena
     /**
      * Registers event handlers
      */
-    function register(&$controller)
+    function register(Doku_Event_Handler $controller)
     {
         $this->common = new PreserveFilenames_Common();
 
